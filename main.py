@@ -17,6 +17,7 @@ output = "/Users/semihdalgin/Desktop/coding/coding/Jua/"
 today = datetime.datetime.now().isoformat()
 dates=[]
 
+#checking data and downloading. If it is exist, using existing one.
 if not os.path.exists(file_path) == True:
     '''' ** ** Download data ** ** '''
     s3 = boto3.resource('s3')
@@ -25,17 +26,17 @@ if not os.path.exists(file_path) == True:
 else:
     print('Using Existing File')
 
-
+#h3 indexing
 def h3index(df):
     df["h3"] = df.apply(lambda x: hexa.geo_to_h3(lat=x.lat, lng=x.lon, resolution=h3Resolution), axis=1)
     return df
 
-
+#generating h3 geometries
 def add_geometry(df):
     points = hexa.h3_to_geo_boundary(df['h3'], True)
     return Polygon(points)
 
-
+#generating geojson
 def hexagons_dataframe_to_geojson(df_hex, hex_id_field, geometry_field, value_field, file_output= None):
     list_features = []
 
@@ -54,7 +55,7 @@ def hexagons_dataframe_to_geojson(df_hex, hex_id_field, geometry_field, value_fi
     else:
         return feat_collection
 
-
+#data operations, date list of data
 def unique(list1):
     # initialize a null list
     unique_list = []
@@ -67,6 +68,7 @@ def unique(list1):
 
 # read the netcdf data into xarray dataset
 ds_main = xr.open_dataset(file_path)
+
 for i in ds_main['time1'].values:
     ii=str(i).split('T')[0]
     year, month, day = [int(item) for item in (ii.split('-'))]
@@ -80,10 +82,10 @@ while True:
     else:
         print('There is not any information for this day. Please select another day')
 
-
 year, month, day = [int(item) for item in selection_date.split('-')]
 start_date = datetime.date(year, month, day)
 end_date = start_date + datetime.timedelta(hours=1)
+#Filtering data according to date range
 ds = ds_main.sel(time1=slice(start_date, end_date))
 
 df = ds.to_dataframe()
@@ -93,26 +95,28 @@ df = df.reset_index(level=0)
 df = df.reset_index(level=0)
 df = df.reset_index(level=0)
 
+#indexing
 h3index(df)
 
+#H3 data preperations
 prep = (df.groupby('h3').index.agg(list).to_frame('ids').reset_index())
-# Let's get means each points inside the hexagon
+# Means each points inside the hexagon
 prep['prep_mean'] = df.groupby('h3')['precipitation_amount_1hour_Accumulation'].transform('mean')
 
-# Apply function into our dataframe
+# Generating geometries into our dataframe
 prep['geometry'] = (prep.apply(add_geometry, axis=1))
 
+#Data export in parquet format
 filename = 'Timestamp_filter_' + str(start_date) + '_' + str(end_date) + '.parquet'
-
 df.to_parquet(os.path.join(output, filename), engine='pyarrow')
 
-
+#Generating Polygons
 geojson_obj = (hexagons_dataframe_to_geojson
                (prep,
                 hex_id_field='h3',
                 value_field='prep_mean',
                 geometry_field='geometry'))
-
+#Visualisations
 fig = (px.choropleth_mapbox(
     prep,
     geojson=geojson_obj,
