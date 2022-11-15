@@ -1,5 +1,5 @@
 # NetcdftoParquet
-Downloading Netcdf data from aws, exporting parquet and visualization with interactive map
+Downloading Netcdf data from aws, exporting parquet, h3 indexing and visualization with interactive map
 
 Install Requirements
 python3 -m pip install -r requirements.txt
